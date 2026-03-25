@@ -1,3 +1,8 @@
 {
-  "routes": [{ "src": "/(.*)", "dest": "main.py" }]
+  "routes": [{ "src": "/(.*)", "dest": "main.py" }],
+  "build": {
+    "env": {
+      "PYTHON_VERSION": "3.9"  # 适配Vercel Python运行时，避免版本兼容问题
+    }
+  }
 }

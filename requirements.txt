@@ -1,4 +1,7 @@
-fastapi
-uvicorn
-openai
-python-multipart
+fastapi>=0.104.1
+uvicorn>=0.24.0
+openai>=1.3.7
+python-multipart>=0.0.6
+redis>=5.0.1  # 适配 Upstash Redis（替代下架的Vercel KV），解决数据持久化，无需额外安装依赖
+slowapi>=0.1.8  # 接口限流依赖
+limits>=3.6.0  # slowapi 依赖
