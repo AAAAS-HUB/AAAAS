@@ -5,3 +5,7 @@ python-multipart>=0.0.6
 redis>=5.0.1  # 适配 Upstash Redis（替代下架的Vercel KV），解决数据持久化，无需额外安装依赖
 slowapi>=0.1.8  # 接口限流依赖
 limits>=3.6.0  # slowapi 依赖
+# 注释：无需短信验证，删除requests依赖
+# requests>=2.31.0  # 用于调用短信API，无需短信验证可删除
+# 注释：若启用方案2（邮箱验证码），需添加以下依赖
+# secure-smtplib>=0.1.1  # 邮箱SMTP加密连接依赖
