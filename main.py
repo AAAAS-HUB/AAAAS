@@ -253,7 +253,13 @@ def get_history(identifier: str) -> list:
     history_key = f"history:{encrypt_phone(identifier)}" if identifier.isdigit() else f"history:{hashlib.md5(identifier.encode('utf-8')).hexdigest()[:16]}"
     # 获取所有历史记录，转为字典列表
     history_list = redis_client.lrange(history_key, 0, -1)
-    return [json.loads(item) for item in history_list]
+    # 补充格式化时间，适配前端显示
+    history_data = []
+    for item in history_list:
+        item_dict = json.loads(item)
+        item_dict["time_str"] = format_time(item_dict["time"])
+        history_data.append(item_dict)
+    return history_data
 
 # ================== 无短信验证：3种登录方案（已启用方案1，其余注释） ==================
 # 方案1：本地验证码（无需第三方，直接在前端显示，适合测试/轻量使用）【已启用】
@@ -359,17 +365,162 @@ def login(identifier: str, code: str):
     redis_client.hset(user_key, mapping={"code": None, "code_expire": 0})
     return {"ok": True, "msg": "登录成功，可正常使用所有功能"}
 
-# ================== 前端页面（升级版，适配无短信登录，适配方案1） ==================
+# ================== 核心业务接口（补充缺失接口，确保功能完整） ==================
+# 简历优化接口
+@app.post("/api/resume")
+@limiter.limit("10/minute")
+async def generate_resume(
+    request: Request,
+    identifier: str = Form(...),
+    content: str = Form(...),
+    job: str = Form(...),
+    jd: str = Form(default=""),
+    style: str = Form(default="STAR法则")
+):
+    """简历优化接口，适配前端调用"""
+    # 检查使用权限
+    can_use, msg = check_use_limit(identifier)
+    if not can_use:
+        return {"ok": False, "error": msg}
+    
+    # 过滤敏感内容
+    content = filter_sensitive_content(content)
+    jd = filter_sensitive_content(jd)
+    
+    # 构造AI提示词
+    prompt = f"""请按照{style}风格，结合目标岗位「{job}」和JD「{jd}」，优化以下简历内容。
+要求：突出核心能力和工作成果，语言专业简洁，适配目标岗位需求，修正语法错误，排版清晰，保留原始简历关键信息，避免冗余。
+原始简历：{content}"""
+    
+    try:
+        # 调用AI生成优化简历
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": "你是专业的简历优化专家，擅长根据不同岗位和风格优化简历，突出个人亮点和竞争力。"},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            timeout=15.0  # 适配Vercel函数超时限制
+        )
+        result = response.choices[0].message.content
+        # 记录使用历史
+        add_history(identifier, "resume", {"content": content, "job": job, "jd": jd, "style": style}, result)
+        return {"ok": True, "data": result}
+    except Exception as e:
+        return {"ok": False, "error": f"简历优化失败：{str(e)}"}
+
+# 文案生成接口
+@app.post("/api/copy")
+@limiter.limit("10/minute")
+async def generate_copy(
+    request: Request,
+    identifier: str = Form(...),
+    topic: str = Form(...),
+    style: str = Form(default="正式"),
+    len: str = Form(default="300字"),
+    template: str = Form(default="通用"),
+    context: str = Form(default="")
+):
+    """文案生成接口，适配前端调用"""
+    # 检查使用权限
+    can_use, msg = check_use_limit(identifier)
+    if not can_use:
+        return {"ok": False, "error": msg}
+    
+    # 过滤敏感内容
+    topic = filter_sensitive_content(topic)
+    context = filter_sensitive_content(context)
+    
+    # 构造AI提示词
+    prompt = f"""请按照「{style}」风格、「{len}」篇幅、「{template}」模板，结合补充说明「{context}」，围绕主题「{topic}」生成文案。
+要求：语言流畅，贴合模板风格，符合篇幅要求，突出主题，无冗余内容，适合目标场景使用。"""
+    
+    try:
+        # 调用AI生成文案
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": "你是专业的文案创作大师，擅长各类风格、各类模板的文案生成，贴合用户需求，语言有感染力。"},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            timeout=15.0
+        )
+        result = response.choices[0].message.content
+        # 记录使用历史
+        add_history(identifier, "copy", {"topic": topic, "style": style, "len": len, "template": template, "context": context}, result)
+        return {"ok": True, "data": result}
+    except Exception as e:
+        return {"ok": False, "error": f"文案生成失败：{str(e)}"}
+
+# 用户信息接口（补充缺失，适配前端显示）
+@app.get("/api/user-info")
+def get_user_info(identifier: str):
+    """获取用户信息，适配前端显示"""
+    user_key = f"user:{encrypt_phone(identifier)}" if identifier.isdigit() else f"user:{hashlib.md5(identifier.encode('utf-8')).hexdigest()[:16]}"
+    if not redis_client.exists(user_key):
+        return {"ok": False, "error": "用户不存在"}
+    
+    user_data = redis_client.hgetall(user_key)
+    # 处理会员到期时间显示
+    vip_expire = int(user_data["vip_expire"])
+    vip_expire_str = format_time(vip_expire) if vip_expire > now() else "已过期"
+    # 处理剩余免费次数
+    current_date = today()
+    if user_data["date"] != current_date:
+        redis_client.hset(user_key, mapping={"date": current_date, "daily_count": 0})
+        daily_count = 0
+    else:
+        daily_count = int(user_data["daily_count"])
+    left_count = FREE_LIMIT - daily_count
+    
+    return {
+        "ok": True,
+        "data": {
+            "identifier": user_data["identifier"],
+            "vip": user_data["vip"] == "True",
+            "vip_expire": vip_expire_str,
+            "vip_package": user_data["vip_package"] or "未开通会员",
+            "free_limit": FREE_LIMIT,
+            "left": left_count,
+            "invite_code": user_data["invite_code"]
+        }
+    }
+
+# 会员支付验证接口（补充缺失，适配前端调用）
+@app.get("/api/pay-check")
+def pay_check(identifier: str, code: str, package: str):
+    """会员支付验证接口（模拟验证，实际需对接支付平台）"""
+    # 简单验证订单号格式
+    if not code.startswith(ORDER_PREFIX):
+        return {"ok": False, "error": "订单号格式错误"}
+    
+    # 激活会员
+    if activate_vip(identifier, package):
+        return {"ok": True, "msg": "会员开通成功"}
+    else:
+        return {"ok": False, "error": "会员开通失败，请重试"}
+
+# 历史记录接口（补充接口，适配前端调用）
+@app.get("/api/history")
+def get_user_history(identifier: str):
+    """获取用户使用历史，适配前端显示"""
+    history_data = get_history(identifier)
+    return {"ok": True, "data": history_data}
+
+# ================== 前端页面（完整版，修复缺失内容，适配所有接口） ==================
 @app.get("/", response_class=HTMLResponse)
 def index():
     return f"""<!DOCTYPE html>
 AI简历·文案SaaS ProAI简历·文案SaaS Pro<!-- 登录区域（适配方案1：本地验证码） -->
         用户登录（本地验证码）<!-- VIP开通区域 -->
-        开通会员，不限次数使用
+开通会员，不限次数使用
                     月卡：19.9元/30天 
-                    季卡：49.9元/90天  年卡：169.9元/365天 <!-- 功能标签页 -->
+                    季卡：49.9元/90天 
+                    年卡：169.9元/365天 <!-- 功能标签页 -->
         <!-- 简历优化 -->
         简历优化（多风格可选）优化结果：<!-- 文案生成 -->
         文案生成（多模板可选）生成结果：<!-- 使用历史 -->
         使用历史暂无使用记录<!-- 用户信息 -->
-        用户信息请先登录登录标识：${currentIdentifier}会员状态：${data.vip ? '已开通' : '未开通'}会员到期时间：${data.vip_expire}今日剩余免费次数：${data.left}次（每日免费${data.free_limit}次）邀请码：${data.invite_code}类型：${item.type === 'resume' ? '简历优化' : '文案生成'}时间：${item.time_str}标题：${item.input.topic || item.input.job || '无标题'}"""
+        用户信息请先登录登录标识：${data.data.identifier}会员状态：${data.data.vip ? '已开通' : '未开通'}会员到期时间：${data.data.vip_expire}今日剩余免费次数：${data.data.left}次（每日免费${data.data.free_limit}次）邀请码：${data.data.invite_code}类型：${item.type === 'resume' ? '简历优化' : '文案生成'}时间：${item.time_str}标题：${item.input.topic || item.input.job || '无标题'}<button class="copy-btn" onclick="copyHistory('${item.id}', '${item.output.replace(/'/g, "\复制结果"""
