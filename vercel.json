@@ -1,3 +1,10 @@
 {
-  "routes": [{ "src": "/(.*)", "dest": "main.py" }]
+  "routes": [{ "src": "/(.*)", "dest": "main.py" }],
+  "build": {
+    "env": {
+      "PYTHON_VERSION": "3.9"  # 适配Vercel Python运行时，避免版本兼容问题
+    },
+    "requirements": "requirements.txt",  # 明确指定依赖文件，确保Vercel正确安装依赖
+    "entrypoint": "main:app"  # 新增入口点配置，指定fastapi入口为main.py中的app实例，解决No fastapi entrypoint found错误
+  }
 }
