@@ -16,7 +16,8 @@ from slowapi.errors import RateLimitExceeded
 # 注释：无需短信验证，删除requests依赖（用于短信API调用）
 
 # ================== 基础配置 ==================
-app = FastAPI(title="AI简历·文案SaaS Pro")
+# 关键校验：确保FastAPI入口实例正确，与vercel.json的entrypoint: main:app完全匹配
+app = FastAPI(title="AI简历·文案SaaS Pro")  # 实例名固定为app，无拼写错误、无多余修饰
 
 # 跨域 + 限流配置
 app.add_middleware(
@@ -40,18 +41,8 @@ VIP_PACKAGES = {  # 会员套餐：key=天数, value=价格
 }
 ORDER_PREFIX = "PAY_"
 WXPAY_QR_URL = "https://s41.ax1x.com/2026/03/23/peKuPxg.jpg"  # 替换为自己的收款码URL
-# 注释：无需短信验证，删除SMS相关配置
-# SMS_API_KEY = os.getenv("SMS_API_KEY", "")  # 短信平台API Key（如阿里云/腾讯云）
-# 阿里云短信配置（需替换为自己的配置）
-# ALIYUN_SMS_SIGN = "你的阿里云短信签名"  # 审核通过的签名
-# ALIYUN_SMS_TEMPLATE = "你的阿里云验证码模板ID"  # 审核通过的模板ID（验证码类）
-# 腾讯云短信配置（需替换为自己的配置）
-# TENCENT_SMS_SIGN = "你的腾讯云短信签名"  # 审核通过的签名
-# TENCENT_SMS_TEMPLATE = "你的腾讯云验证码模板ID"  # 审核通过的模板ID（验证码类）
-# TENCENT_SMS_APPID = "你的腾讯云短信APPID"  # 腾讯云短信控制台获取
 
 # 初始化 Redis 客户端（适配 Upstash Redis，替代下架的Vercel KV，完全兼容原逻辑）
-# Upstash Redis 开通后，会自动生成 REDIS_URL 环境变量，无需手动配置host、port、password
 redis_client = redis.from_url(
     os.getenv("REDIS_URL"),
     decode_responses=True,  # 自动将bytes转为str，避免手动解码
@@ -80,69 +71,6 @@ def now() -> int:
 def format_time(timestamp: int) -> str:
     """时间戳转格式化字符串"""
     return datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M")
-
-# 注释：无需短信验证，删除send_sms_code函数
-# def send_sms_code(phone: str, code: str) -> bool:
-#     """发送短信验证码（对接真实短信平台，二选一即可）"""
-#     # 调试模式：未配置SMS_API_KEY时，仅打印验证码，不真实发送
-#     if not SMS_API_KEY:
-#         print(f"【调试模式】向{phone}发送验证码：{code}")
-#         return True
-#     
-#     # 方案1：阿里云短信API调用（推荐，稳定）
-#     # 文档参考：https://help.aliyun.com/document_detail/101414.html
-#     try:
-#         resp = requests.post(
-#             url="https://dysmsapi.aliyuncs.com/?Action=SendSms",
-#             params={
-#                 "AccessKeyId": SMS_API_KEY.split(",")[0],  # 若填了AccessKey ID和Secret，用逗号分隔，此处取ID
-#                 "AccessKeySecret": SMS_API_KEY.split(",")[1],  # 此处取Secret
-#                 "PhoneNumbers": phone,
-#                 "SignName": ALIYUN_SMS_SIGN,
-#                 "TemplateCode": ALIYUN_SMS_TEMPLATE,
-#                 "TemplateParam": json.dumps({"code": code}),  # 模板参数，对应模板中的${code}
-#                 "RegionId": "cn-hangzhou",  # 固定地域，无需修改
-#                 "Format": "JSON"  # 响应格式，无需修改
-#             },
-#             timeout=5.0
-#         )
-#         resp_json = resp.json()
-#         # 阿里云返回Code为OK表示发送成功
-#         if resp_json.get("Code") == "OK":
-#             return True
-#         else:
-#             print(f"阿里云短信发送失败：{resp_json.get('Message')}")
-#             return False
-#     except Exception as e:
-#         print(f"阿里云短信调用异常：{str(e)}")
-#         return False
-#     
-#     # 方案2：腾讯云短信API调用（备用，简洁）
-#     # 文档参考：https://cloud.tencent.com/document/api/382/55981
-#     # 若使用腾讯云，注释上方阿里云代码，取消下方注释，并配置TENCENT相关参数
-#     # try:
-#     #     resp = requests.post(
-#     #         url=f"https://sms.tencentcloudapi.com/?Action=SendSms&Version=2021-01-11&Region=ap-guangzhou",
-#     #         headers={"Content-Type": "application/json"},
-#     #         json={
-#     #             "SmsSdkAppId": TENCENT_SMS_APPID,
-#     #             "SignName": TENCENT_SMS_SIGN,
-#     #             "TemplateId": TENCENT_SMS_TEMPLATE,
-#     #             "PhoneNumberSet": [phone],
-#     #             "TemplateParamSet": [code]  # 对应模板中的{1}参数
-#     #         },
-#     #         auth=(SMS_API_KEY.split(",")[0], SMS_API_KEY.split(",")[1]),  # SecretId和SecretKey，逗号分隔
-#     #         timeout=5.0
-#     #     )
-#     #     resp_json = resp.json()
-#     #     if resp_json.get("Response").get("SendStatusSet")[0].get("Code") == "Ok":
-#     #         return True
-#     #     else:
-#     #         print(f"腾讯云短信发送失败：{resp_json.get('Response').get('Error').get('Message')}")
-#     #         return False
-#     # except Exception as e:
-#     #     print(f"腾讯云短信调用异常：{str(e)}")
-#     #     return False
 
 def filter_sensitive_content(content: str) -> str:
     """过滤敏感内容"""
@@ -253,7 +181,6 @@ def get_history(identifier: str) -> list:
     history_key = f"history:{encrypt_phone(identifier)}" if identifier.isdigit() else f"history:{hashlib.md5(identifier.encode('utf-8')).hexdigest()[:16]}"
     # 获取所有历史记录，转为字典列表
     history_list = redis_client.lrange(history_key, 0, -1)
-    # 补充格式化时间，适配前端显示
     history_data = []
     for item in history_list:
         item_dict = json.loads(item)
@@ -280,35 +207,33 @@ def get_code(identifier: str, request: Request):
     code = str(random.randint(100000, 999999))
     user_key = f"user:{encrypt_phone(identifier)}" if identifier.isdigit() else f"user:{hashlib.md5(identifier.encode('utf-8')).hexdigest()[:16]}"
     
-    # 更新验证码（5分钟过期，避免验证码长期有效）
+    # 更新验证码（5分钟过期，避免长期有效）
     redis_client.hset(user_key, mapping={
         "code": code,
         "code_expire": str(now() + 300)
     })
     
-    # 返回验证码给前端（前端显示，用户手动输入，无需短信接收）
+    # 返回验证码给前端（前端显示，用户手动输入）
     return {"ok": True, "code": code, "msg": "验证码已返回前端，请手动输入（5分钟内有效）"}
 
-# 方案2：邮箱验证码（需配置SMTP，适合正式使用，无需短信）【未启用，如需使用请取消注释并配置SMTP】
+# 方案2：邮箱验证码（需配置SMTP，适合正式使用）【未启用，如需使用请取消注释并配置】
 # def send_email_code(identifier: str, code: str) -> bool:
-#     """发送邮箱验证码（需配置SMTP信息）"""
+#     """发送邮箱验证码（需配置SMTP）"""
 #     import smtplib
 #     from email.mime.text import MIMEText
 #     from email.header import Header
 #     # 配置SMTP（替换为自己的邮箱信息）
-#     smtp_server = "smtp.163.com"  # 如163邮箱：smtp.163.com，QQ邮箱：smtp.qq.com
-#     smtp_port = 465  # 加密端口，固定465
-#     smtp_user = "你的邮箱@163.com"  # 发送验证码的邮箱
-#     smtp_pwd = "你的邮箱授权码"  # 邮箱授权码（不是登录密码，需在邮箱设置中开启）
-#     
+#     smtp_server = "smtp.163.com"
+#     smtp_port = 465
+#     smtp_user = "你的邮箱@163.com"
+#     smtp_pwd = "你的邮箱授权码"  # 不是登录密码，需在邮箱设置中开启SMTP授权
+#     # 构造邮件内容
+#     msg = MIMEText(f"你的AI简历·文案SaaS验证码为：{code}，5分钟内有效，请勿泄露给他人。", "plain", "utf-8")
+#     msg["From"] = Header("AI简历SaaS", "utf-8")
+#     msg["To"] = Header(identifier, "utf-8")
+#     msg["Subject"] = Header("验证码验证", "utf-8")
+#     # 发送邮件
 #     try:
-#         # 构造邮件内容
-#         msg = MIMEText(f"你的AI简历·文案SaaS验证码为：{code}，5分钟内有效，请勿泄露给他人。", "plain", "utf-8")
-#         msg["From"] = Header("AI简历SaaS", "utf-8")
-#         msg["To"] = Header(identifier, "utf-8")
-#         msg["Subject"] = Header("验证码验证", "utf-8")
-#         
-#         # 连接SMTP服务器并发送邮件
 #         with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
 #             server.login(smtp_user, smtp_pwd)
 #             server.sendmail(smtp_user, [identifier], msg.as_string())
@@ -316,34 +241,30 @@ def get_code(identifier: str, request: Request):
 #     except Exception as e:
 #         print(f"邮箱验证码发送失败：{str(e)}")
 #         return False
-# 
+
 # @app.get("/api/send-email-code")
 # @limiter.limit("5/minute")
 # def send_email_code_api(identifier: str, request: Request):
-#     """发送邮箱验证码接口，identifier为用户邮箱"""
+#     """发送邮箱验证码接口（方案2），identifier为用户邮箱"""
 #     if not re.match(r"^[a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$", identifier):
 #         return {"ok": False, "error": "邮箱格式错误"}
-#     
 #     init_user(identifier)
 #     code = str(random.randint(100000, 999999))
 #     user_key = f"user:{hashlib.md5(identifier.encode('utf-8')).hexdigest()[:16]}"
 #     redis_client.hset(user_key, mapping={"code": code, "code_expire": str(now() + 300)})
-#     
 #     if send_email_code(identifier, code):
-#         return {"ok": True, "msg": "验证码已发送至你的邮箱"}
+#         return {"ok": True, "msg": "验证码已发送至你的邮箱（5分钟内有效）"}
 #     else:
 #         return {"ok": False, "error": "邮箱验证码发送失败，请检查SMTP配置"}
 
-# 方案3：免验证登录（无需验证码，直接用手机号/邮箱/用户名登录，适合测试/快速部署）【未启用，如需使用请取消注释】
+# 方案3：免验证登录（无需验证码，直接登录，适合测试/快速部署）【未启用，如需使用请取消注释】
 # @app.get("/api/no-auth-login")
 # def no_auth_login(identifier: str):
 #     """免验证登录，identifier为手机号/邮箱/用户名（直接创建/登录用户）"""
-#     # 可添加简单校验，避免恶意登录
 #     if len(identifier)< 4:
 #         return {"ok": False, "error": "登录标识长度不能少于4位"}
-#     
 #     init_user(identifier)
-#     return {"ok": True, "msg": "登录成功"}
+#     return {"ok": True, "msg": "登录成功，可正常使用所有功能"}
 
 # ================== 通用登录验证接口（适配方案1、2，方案3无需此接口） ==================
 @app.get("/api/login")
@@ -353,6 +274,7 @@ def login(identifier: str, code: str):
     if not redis_client.exists(user_key):
         return {"ok": False, "error": "用户不存在，请先获取验证码"}
     
+    # 验证验证码和过期时间
     code_store = redis_client.hget(user_key, "code")
     code_expire = int(redis_client.hget(user_key, "code_expire"))
     
@@ -361,7 +283,7 @@ def login(identifier: str, code: str):
     if now() > code_expire:
         return {"ok": False, "error": "验证码已过期，请重新获取"}
     
-    # 清空验证码（防止重复使用）
+    # 登录成功：清空验证码（防止重复使用）
     redis_client.hset(user_key, mapping={"code": None, "code_expire": 0})
     return {"ok": True, "msg": "登录成功，可正常使用所有功能"}
 
@@ -454,7 +376,7 @@ async def generate_copy(
     except Exception as e:
         return {"ok": False, "error": f"文案生成失败：{str(e)}"}
 
-# 用户信息接口（补充缺失，适配前端显示）
+# 用户信息接口（适配前端显示）
 @app.get("/api/user-info")
 def get_user_info(identifier: str):
     """获取用户信息，适配前端显示"""
@@ -463,64 +385,55 @@ def get_user_info(identifier: str):
         return {"ok": False, "error": "用户不存在"}
     
     user_data = redis_client.hgetall(user_key)
-    # 处理会员到期时间显示
-    vip_expire = int(user_data["vip_expire"])
-    vip_expire_str = format_time(vip_expire) if vip_expire > now() else "已过期"
-    # 处理剩余免费次数
-    current_date = today()
-    if user_data["date"] != current_date:
-        redis_client.hset(user_key, mapping={"date": current_date, "daily_count": 0})
-        daily_count = 0
-    else:
-        daily_count = int(user_data["daily_count"])
-    left_count = FREE_LIMIT - daily_count
-    
+    # 处理数据格式，适配前端显示
     return {
         "ok": True,
         "data": {
             "identifier": user_data["identifier"],
             "vip": user_data["vip"] == "True",
-            "vip_expire": vip_expire_str,
+            "vip_expire": format_time(int(user_data["vip_expire"])) if int(user_data["vip_expire"]) > now() else "已过期",
             "vip_package": user_data["vip_package"] or "未开通会员",
             "free_limit": FREE_LIMIT,
-            "left": left_count,
+            "left_count": FREE_LIMIT - int(user_data["daily_count"]) if user_data["vip"] == "False" else "不限次数",
             "invite_code": user_data["invite_code"]
         }
     }
 
-# 会员支付验证接口（补充缺失，适配前端调用）
-@app.get("/api/pay-check")
-def pay_check(identifier: str, code: str, package: str):
-    """会员支付验证接口（模拟验证，实际需对接支付平台）"""
-    # 简单验证订单号格式
-    if not code.startswith(ORDER_PREFIX):
+# 会员开通接口（模拟支付，实际需对接支付平台）
+@app.get("/api/activate-vip")
+def activate_vip_api(identifier: str, package: str, order_code: str):
+    """会员开通接口，order_code为模拟订单号（实际需对接支付平台验证）"""
+    # 简单验证订单号格式（实际需对接微信/支付宝支付接口）
+    if not order_code.startswith(ORDER_PREFIX):
         return {"ok": False, "error": "订单号格式错误"}
     
     # 激活会员
     if activate_vip(identifier, package):
-        return {"ok": True, "msg": "会员开通成功"}
+        return {"ok": True, "msg": f"会员开通成功，有效期{VIP_PACKAGES[package]['days']}天"}
     else:
         return {"ok": False, "error": "会员开通失败，请重试"}
 
-# 历史记录接口（补充接口，适配前端调用）
+# 历史记录接口
 @app.get("/api/history")
 def get_user_history(identifier: str):
     """获取用户使用历史，适配前端显示"""
     history_data = get_history(identifier)
     return {"ok": True, "data": history_data}
 
-# ================== 前端页面（完整版，修复缺失内容，适配所有接口） ==================
+# ================== 前端页面（完整版，适配所有接口，修复缺失内容） ==================
 @app.get("/", response_class=HTMLResponse)
 def index():
+    """前端页面入口，适配所有功能接口，修复缺失的HTML内容和JS逻辑"""
     return f"""<!DOCTYPE html>
 AI简历·文案SaaS ProAI简历·文案SaaS Pro<!-- 登录区域（适配方案1：本地验证码） -->
         用户登录（本地验证码）<!-- VIP开通区域 -->
         开通会员，不限次数使用
-                    月卡：19.9元/30天 
-                    季卡：49.9元/90天                     年卡：169.9元/365天 <!-- 功能标签页 -->
+                    月卡：19.9元/30天  季卡：49.9元/90天                     年卡：169.9元/365天 <!-- 功能标签页 -->
         <!-- 简历优化 -->
-        简历优化（多风格可选）优化结果：<!-- 文案生成 -->文案生成（多模板可选）生成结果：<!-- 使用历史 -->
+        简历优化（多风格可选）优化结果：<!-- 文案生成 -->
+       文案生成（多模板可选）生成结果：<!-- 使用历史 -->
         使用历史暂无使用记录<!-- 用户信息 -->
-        用户信息请先登录登录标识：${data.data.identifier}会员状态：${data.data.vip ? '已开通' : '未开通'}会员到期时间：${data.data.vip_expire}今日剩余免费次数：${data.data.left}次（每日免费${data.data.free_limit}次）邀请码：${data.data.invite_code}类型：${item.type === 'resume' ? '简历优化' : '文案生成'}时间：${item.time_str}标题：${item.input.topic || item.input.job || '无标题'}<button class="copy-btn" onclick="copyHistory('${item.id}', '${item.output.replace(/'/g, "\复制结果"""
-    except Exception as e:
-        return HTMLResponse(content="前端页面加载失败，请刷新重试", status_code=500)
+       用户信息请先登录类型：${item.type === 'resume' ? '简历优化' : '文案生成'}时间：${item.time_str}标题：${item.input.topic || item.input.job || '无标题'}内容：${item.output.substring(0, 50)}... 
+                                    <button class="copy-btn" onclick="copyText('${item.output.replace(/'/g, "\复制结果登录标识：${userData.identifier}会员状态：${userData.vip ? '已开通' : '未开通'}会员到期时间：${userData.vip_expire}会员套餐：${userData.vip_package}每日免费次数：${userData.free_limit}次今日剩余次数：${userData.left_count}邀请码：${userData.invite_code}"""
+except Exception as e:
+    return HTMLResponse(content="前端页面加载失败，请刷新重试", status_code=500)

@@ -3,9 +3,9 @@
   "builds": [
     {
       "src": "main.py",
-      "use": "@vercel/python",
+      "use": "@vercel/python@2.15.1",
       "config": {
-        "entrypoint": "main:app"  // 关键：显式指定FastAPI入口，和main.py的app实例完全对应
+        "entrypoint": "main:app"
       }
     }
   ],
