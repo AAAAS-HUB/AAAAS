@@ -339,7 +339,7 @@ def get_code(identifier: str, request: Request):
 # def no_auth_login(identifier: str):
 #     """免验证登录，identifier为手机号/邮箱/用户名（直接创建/登录用户）"""
 #     # 可添加简单校验，避免恶意登录
-#     if len(identifier) < 4:
+#     if len(identifier)< 4:
 #         return {"ok": False, "error": "登录标识长度不能少于4位"}
 #     
 #     init_user(identifier)
@@ -515,12 +515,12 @@ def index():
     return f"""<!DOCTYPE html>
 AI简历·文案SaaS ProAI简历·文案SaaS Pro<!-- 登录区域（适配方案1：本地验证码） -->
         用户登录（本地验证码）<!-- VIP开通区域 -->
-开通会员，不限次数使用
+        开通会员，不限次数使用
                     月卡：19.9元/30天 
-                    季卡：49.9元/90天 
-                    年卡：169.9元/365天 <!-- 功能标签页 -->
+                    季卡：49.9元/90天                     年卡：169.9元/365天 <!-- 功能标签页 -->
         <!-- 简历优化 -->
-        简历优化（多风格可选）优化结果：<!-- 文案生成 -->
-        文案生成（多模板可选）生成结果：<!-- 使用历史 -->
+        简历优化（多风格可选）优化结果：<!-- 文案生成 -->文案生成（多模板可选）生成结果：<!-- 使用历史 -->
         使用历史暂无使用记录<!-- 用户信息 -->
         用户信息请先登录登录标识：${data.data.identifier}会员状态：${data.data.vip ? '已开通' : '未开通'}会员到期时间：${data.data.vip_expire}今日剩余免费次数：${data.data.left}次（每日免费${data.data.free_limit}次）邀请码：${data.data.invite_code}类型：${item.type === 'resume' ? '简历优化' : '文案生成'}时间：${item.time_str}标题：${item.input.topic || item.input.job || '无标题'}<button class="copy-btn" onclick="copyHistory('${item.id}', '${item.output.replace(/'/g, "\复制结果"""
+    except Exception as e:
+        return HTMLResponse(content="前端页面加载失败，请刷新重试", status_code=500)
