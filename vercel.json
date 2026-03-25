@@ -1,4 +1,5 @@
 {
   "buildCommand": "uvicorn main:app --host 0.0.0.0 --port $PORT",
-  "installCommand": "pip install -r requirements.txt"
+  "installCommand": "pip install -r requirements.txt",
+  "entrypoint": "main:app"
 }
